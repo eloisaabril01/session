@@ -78,12 +78,9 @@
                                 <div style="font-family: monospace; font-size: 13px; background: #eee; padding: 5px; border-radius: 4px;">
                                     User: ${acc.username}<br>
                                     Pass: ${acc.password}<br>
-                                    Email: ${acc.email}
-                                </div>
-                                <p style="margin: 10px 0 5px 0;"><strong>Mail.tm Credentials:</strong></p>
-                                <div style="font-family: monospace; font-size: 12px; background: #f9f9f9; padding: 5px; border-radius: 4px; border: 1px dashed #ccc;">
-                                    Email: ${acc.mail_tm_email || acc.email}<br>
-                                    Pass: ${acc.mail_tm_password || 'pass12345'}
+                                    Email: ${acc.email}<br>
+                                    Session: ${acc.session_id || 'N/A'}<br>
+                                    CSRF: ${acc.csrf_token || 'N/A'}
                                 </div>
                                 ${acc.followed ? `<p style="color: green; font-size: 12px; margin-top: 5px;">✓ Followed ${acc.followed}</p>` : ''}
                             </div>
@@ -151,7 +148,9 @@
                     document.getElementById('credentials').innerHTML = `
                         <strong>Username:</strong> ${data.credentials.username}<br>
                         <strong>Password:</strong> ${data.credentials.password}<br>
-                        <strong>Email:</strong> ${data.credentials.email}
+                        <strong>Email:</strong> ${data.credentials.email}<br>
+                        <strong>Session ID:</strong> ${data.credentials.session_id}<br>
+                        <strong>CSRF Token:</strong> ${data.credentials.csrf_token}
                     `;
                 } else {
                     showError(data.error || 'Verification failed');
