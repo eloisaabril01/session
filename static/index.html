@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Generator</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #fafafa; }
+        .container { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
+        h2 { text-align: center; color: #262626; }
+        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #dbdbdb; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background-color: #0095f6; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        button:disabled { background-color: #b2dffc; }
+        .hidden { display: none; }
+        .result { margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 4px; word-break: break-all; }
+        #error { color: red; text-align: center; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Account Gen</h2>
+        <div id="error"></div>
+        
+        <div id="step-email">
+            <div style="margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 15px;">
+                <p style="font-size: 14px; color: #666;">Bulk Auto-Generate</p>
+                <input type="number" id="bulk-count" placeholder="How many accounts? (max 10)" min="1" max="10">
+                <input type="text" id="target-follow" placeholder="Username or Profile URL (optional)">
+                <button onclick="autoGenerate()" id="btn-auto" style="background-color: #28a745;">Auto Generate</button>
+            </div>
+            <p style="font-size: 14px; color: #666;">Or Manual Create</p>
+            <input type="email" id="email" placeholder="Enter Email" required>
+            <button onclick="requestOtp()" id="btn-email">Send OTP</button>
+        </div>
+
+        <div id="step-otp" class="hidden">
+            <p>Verification code sent to email.</p>
+            <input type="text" id="otp" placeholder="Enter OTP" required>
+            <button onclick="verifyOtp()" id="btn-otp">Verify & Create</button>
+        </div>
+
+        <div id="step-result" class="hidden">
+            <h3>Account Created!</h3>
+            <div id="credentials" class="result"></div>
+            <button onclick="location.reload()" style="margin-top: 10px; background: #8e8e8e;">Create Another</button>
+        </div>
+    </div>
+
+    <script>
+        const showError = (msg) => { document.getElementById('error').innerText = msg; };
+        const hideError = () => { document.getElementById('error').innerText = ''; };
+
+        async function autoGenerate() {
+            const count = document.getElementById('bulk-count').value;
+            const targetFollow = document.getElementById('target-follow').value;
+            const btn = document.getElementById('btn-auto');
+            if(!count || count < 1) return showError('Please enter count');
+            
+            btn.disabled = true;
+            btn.innerText = 'Creating...';
+            hideError();
+            
+            try {
+                const res = await fetch('/api/auto-generate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ count, target_follow: targetFollow })
+                });
+                const data = await res.json();
+                if(data.success && data.accounts.length > 0) {
+                    document.getElementById('step-email').classList.add('hidden');
+                    document.getElementById('step-result').classList.remove('hidden');
+                    let html = '';
+                    data.accounts.forEach(acc => {
+                        html += `
+                            <div style="margin-bottom:15px; padding-bottom:10px; border-bottom:1px solid #ddd">
+                                <p style="margin: 5px 0;"><strong>Instagram Account:</strong></p>
+                                <div style="font-family: monospace; font-size: 13px; background: #eee; padding: 5px; border-radius: 4px;">
+                                    User: ${acc.username}<br>
+                                    Pass: ${acc.password}<br>
+                                    Email: ${acc.email}
+                                </div>
+                                <p style="margin: 10px 0 5px 0;"><strong>Mail.tm Credentials:</strong></p>
+                                <div style="font-family: monospace; font-size: 12px; background: #f9f9f9; padding: 5px; border-radius: 4px; border: 1px dashed #ccc;">
+                                    Email: ${acc.mail_tm_email || acc.email}<br>
+                                    Pass: ${acc.mail_tm_password || 'pass12345'}
+                                </div>
+                                ${acc.followed ? `<p style="color: green; font-size: 12px; margin-top: 5px;">✓ Followed ${acc.followed}</p>` : ''}
+                            </div>
+                        `;
+                    });
+                    document.getElementById('credentials').innerHTML = html;
+                } else {
+                    showError('Failed to create accounts or none created');
+                }
+            } catch(e) {
+                showError('Server error');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Auto Generate';
+            }
+        }
+
+        async function requestOtp() {
+            const email = document.getElementById('email').value;
+            const btn = document.getElementById('btn-email');
+            if(!email) return showError('Please enter email');
+            
+            btn.disabled = true;
+            hideError();
+            
+            try {
+                const res = await fetch('/api/request-otp', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ email })
+                });
+                const data = await res.json();
+                if(data.success) {
+                    document.getElementById('step-email').classList.add('hidden');
+                    document.getElementById('step-otp').classList.remove('hidden');
+                } else {
+                    showError(data.error || 'Failed to send OTP');
+                }
+            } catch(e) {
+                showError('Server error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function verifyOtp() {
+            const email = document.getElementById('email').value;
+            const otp = document.getElementById('otp').value;
+            const btn = document.getElementById('btn-otp');
+            if(!otp) return showError('Please enter OTP');
+            
+            btn.disabled = true;
+            hideError();
+            
+            try {
+                const res = await fetch('/api/verify-otp', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ email, otp })
+                });
+                const data = await res.json();
+                if(data.success) {
+                    document.getElementById('step-otp').classList.add('hidden');
+                    document.getElementById('step-result').classList.remove('hidden');
+                    document.getElementById('credentials').innerHTML = `
+                        <strong>Username:</strong> ${data.credentials.username}<br>
+                        <strong>Password:</strong> ${data.credentials.password}<br>
+                        <strong>Email:</strong> ${data.credentials.email}
+                    `;
+                } else {
+                    showError(data.error || 'Verification failed');
+                }
+            } catch(e) {
+                showError('Server error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

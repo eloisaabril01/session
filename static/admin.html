@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-2xl mx-auto bg-white p-6 rounded shadow">
+        <h1 class="text-2xl font-bold mb-6">Admin Control Panel</h1>
+        
+        <div class="mb-8">
+            <h2 class="text-xl font-semibold mb-4">Gmail Configuration</h2>
+            <div class="space-y-4">
+                <input id="gmail-email" type="email" placeholder="Gmail Address" class="w-full p-2 border rounded">
+                <input id="gmail-pass" type="password" placeholder="App Password" class="w-full p-2 border rounded">
+                <button onclick="saveConfig()" class="bg-blue-500 text-white px-4 py-2 rounded">Save & Connect</button>
+            </div>
+        </div>
+
+        <div>
+            <h2 class="text-xl font-semibold mb-4">Stats</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-green-100 p-4 rounded">
+                    <p class="text-sm">Created</p>
+                    <p id="stat-created" class="text-2xl font-bold">0</p>
+                </div>
+                <div class="bg-red-100 p-4 rounded">
+                    <p class="text-sm">Failed</p>
+                    <p id="stat-failed" class="text-2xl font-bold">0</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadConfig() {
+            const res = await fetch('/api/admin/config');
+            const data = await res.json();
+            document.getElementById('gmail-email').value = data.email;
+            document.getElementById('stat-created').innerText = data.stats.created;
+            document.getElementById('stat-failed').innerText = data.stats.failed;
+        }
+
+        async function saveConfig() {
+            const email = document.getElementById('gmail-email').value;
+            const password = document.getElementById('gmail-pass').value;
+            await fetch('/api/admin/config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ email, password })
+            });
+            alert('Config Saved!');
+        }
+
+        loadConfig();
+    </script>
+</body>
+</html>
