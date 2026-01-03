@@ -483,11 +483,15 @@ class InstagramAccountCreator:
         try:
             # Generate account details
             first_name = names.get_first_name()
+            last_name = names.get_last_name()
+            full_name = f"{first_name} {last_name}"
             username = self.get_username_suggestion(first_name, email)
 
             if not username:
-                logger.error("Failed to get username suggestion")
-                return None
+                logger.warning("Failed to get username suggestion, generating local fallback")
+                # Local fallback username generation
+                random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=5))
+                username = f"{first_name.lower()}_{last_name.lower()}_{random_suffix}"
 
             password = self._generate_password(first_name)
             month, day, year = self._generate_birth_date()
@@ -501,7 +505,7 @@ class InstagramAccountCreator:
                 'enc_password': f'#PWD_INSTAGRAM_BROWSER:0:{round(time.time())}:{password}',
                 'email': email,
                 'username': username,
-                'first_name': first_name,
+                'first_name': full_name,
                 'month': month,
                 'day': day,
                 'year': year,
