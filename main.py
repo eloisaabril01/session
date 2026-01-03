@@ -9,19 +9,7 @@ from gmail_mgr import GmailManager
 
 app = Flask(__name__, static_folder='static')
 
-# In-memory storage for session persistence
-# Note: This will not persist across Vercel function instances, 
-# but satisfies the "remove SQLAlchemy" requirement.
-sessions_data = {}
-
-def load_session_memory(email):
-    return sessions_data.get(email.lower())
-
-def save_session_memory(email, state):
-    sessions_data[email.lower()] = state
-
-def delete_session_memory(email):
-    sessions_data.pop(email.lower(), None)
+# Stateless session management: state is passed back and forth to the client
 
 @app.route('/')
 def index():
@@ -152,9 +140,8 @@ def request_otp():
     try:
         creator.generate_headers()
         if creator.send_verification_email(email):
-            save_session_memory(email, creator.get_state())
-            print(f"Session stored in memory for {email}")
-            return jsonify({'success': True, 'message': 'OTP sent to email'})
+            state = creator.get_state()
+            return jsonify({'success': True, 'message': 'OTP sent to email', 'state': state})
         else:
             return jsonify({'error': 'Failed to send OTP'}), 500
     except Exception as e:
@@ -166,14 +153,10 @@ def verify_otp():
     data = request.json
     email = data.get('email', '').lower()
     otp = data.get('otp')
+    state = data.get('state')
     
-    if not email or not otp:
-        return jsonify({'error': 'Email and OTP are required'}), 400
-        
-    state = load_session_memory(email)
-    
-    if not state:
-        return jsonify({'error': f'Session for {email} expired or not found. Please request a new OTP.'}), 404
+    if not email or not otp or not state:
+        return jsonify({'error': 'Email, OTP, and State are required'}), 400
         
     try:
         creator = InstagramAccountCreator()
@@ -183,7 +166,6 @@ def verify_otp():
         if signup_code:
             credentials = creator.create_account(email, signup_code)
             if credentials:
-                delete_session_memory(email)
                 return jsonify({
                     'success': True, 
                     'credentials': {
