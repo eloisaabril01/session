@@ -447,6 +447,25 @@ class InstagramAccountCreator:
         year = random.randint(1990, 2001)
         return month, day, year
 
+    def get_state(self) -> Dict[str, Any]:
+        """Get the current state of the creator for persistence."""
+        return {
+            'cookies': self.session.cookies.get_dict(),
+            'headers': self.headers,
+            'user_agent': self.user_agent,
+            'country': self.country,
+            'language': self.language
+        }
+
+    def load_state(self, state: Dict[str, Any]):
+        """Load state from a dictionary."""
+        self.headers = state.get('headers')
+        self.user_agent = state.get('user_agent')
+        self.country = state.get('country', 'US')
+        self.language = state.get('language', 'en')
+        if state.get('cookies'):
+            self.session.cookies.update(state['cookies'])
+
     def create_account(self, email: str, signup_code: str) -> Optional[AccountCredentials]:
         """
         Create Instagram account with provided email and signup code.
