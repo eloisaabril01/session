@@ -17,3 +17,12 @@ pycparser==2.23
 requests==2.32.5
 urllib3==2.6.2
 Werkzeug==3.1.4
+Flask==3.1.2
+Flask-SQLAlchemy==3.1.1
+psycopg2-binary==2.9.11
+names==0.3.0
+curl-cffi==0.14.0
+requests==2.32.5
+gunicorn==23.0.0
+flask-cors==6.0.2
+SQLAlchemy==2.0.45
