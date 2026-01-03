@@ -13,7 +13,11 @@ from datetime import datetime
 app = Flask(__name__, static_folder='static')
 
 # Database configuration for session persistence
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///sessions.db').replace('postgres://', 'postgresql://')
+db_url = os.environ.get('DATABASE_URL')
+if db_url and db_url.startswith('postgres://'):
+    db_url = db_url.replace('postgres://', 'postgresql://', 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = db_url or 'sqlite:///sessions.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -220,12 +224,12 @@ def verify_otp():
                     }
                 })
             else:
-                return jsonify({'error': 'Account creation failed'}), 500
+                return jsonify({'success': False, 'error': 'Account creation failed. Instagram might be rate-limiting or the username is unavailable.'})
         else:
-            return jsonify({'error': 'Invalid OTP'}), 400
+            return jsonify({'success': False, 'error': 'Invalid OTP'})
     except Exception as e:
         print(f"Error in verify_otp: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/manual-create', methods=['POST'])
 def manual_create():
