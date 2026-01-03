@@ -28,10 +28,10 @@
                 <input type="text" id="target-follow-bulk" placeholder="Username or Profile URL (optional)">
                 <button onclick="autoGenerate()" id="btn-auto" style="background-color: #28a745;">Auto Generate</button>
             </div>
-            <p style="font-size: 14px; color: #666;">Manual Create (Single Request)</p>
+            <p style="font-size: 14px; color: #666;">Manual Create (With OTP Prompt)</p>
             <input type="email" id="email" placeholder="Enter Your Email" required>
             <input type="text" id="target-follow-manual" placeholder="Username or Profile URL (optional)">
-            <button onclick="manualCreate()" id="btn-manual">Create Account</button>
+            <button onclick="requestOtp()" id="btn-email">Send OTP</button>
         </div>
 
         <div id="step-otp" class="hidden">
@@ -99,51 +99,13 @@
             }
         }
 
-        async function manualCreate() {
-            const email = document.getElementById('email').value;
-            const targetFollow = document.getElementById('target-follow-manual').value;
-            const btn = document.getElementById('btn-manual');
-            
-            if(!email) return showError('Please enter email');
-            
-            btn.disabled = true;
-            btn.innerText = 'Creating... (Waiting for OTP)';
-            hideError();
-            
-            try {
-                const res = await fetch('/api/manual-create', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ email, target_follow: targetFollow })
-                });
-                const data = await res.json();
-                if(data.success) {
-                    document.getElementById('step-email').classList.add('hidden');
-                    document.getElementById('step-result').classList.remove('hidden');
-                    document.getElementById('credentials').innerHTML = `
-                        <strong>Username:</strong> ${data.credentials.username}<br>
-                        <strong>Password:</strong> ${data.credentials.password}<br>
-                        <strong>Email:</strong> ${data.credentials.email}<br>
-                        <strong>Session ID:</strong> ${data.credentials.session_id}<br>
-                        <strong>CSRF Token:</strong> ${data.credentials.csrf_token}
-                    `;
-                } else {
-                    showError(data.error || 'Account creation failed');
-                }
-            } catch(e) {
-                showError('Server error');
-            } finally {
-                btn.disabled = false;
-                btn.innerText = 'Create Account';
-            }
-        }
-
         async function requestOtp() {
             const email = document.getElementById('email').value;
             const btn = document.getElementById('btn-email');
             if(!email) return showError('Please enter email');
             
             btn.disabled = true;
+            btn.innerText = 'Sending...';
             hideError();
             
             try {
@@ -163,6 +125,7 @@
                 showError('Server error');
             } finally {
                 btn.disabled = false;
+                btn.innerText = 'Send OTP';
             }
         }
 
