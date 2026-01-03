@@ -23,14 +23,15 @@
         
         <div id="step-email">
             <div style="margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 15px;">
-                <p style="font-size: 14px; color: #666;">Bulk Auto-Generate</p>
+                <p style="font-size: 14px; color: #666;">Bulk Auto-Generate (Random Alias)</p>
                 <input type="number" id="bulk-count" placeholder="How many accounts? (max 10)" min="1" max="10">
-                <input type="text" id="target-follow" placeholder="Username or Profile URL (optional)">
+                <input type="text" id="target-follow-bulk" placeholder="Username or Profile URL (optional)">
                 <button onclick="autoGenerate()" id="btn-auto" style="background-color: #28a745;">Auto Generate</button>
             </div>
-            <p style="font-size: 14px; color: #666;">Or Manual Create</p>
-            <input type="email" id="email" placeholder="Enter Email" required>
-            <button onclick="requestOtp()" id="btn-email">Send OTP</button>
+            <p style="font-size: 14px; color: #666;">Manual Create (Single Request)</p>
+            <input type="email" id="email" placeholder="Enter Your Email" required>
+            <input type="text" id="target-follow-manual" placeholder="Username or Profile URL (optional)">
+            <button onclick="manualCreate()" id="btn-manual">Create Account</button>
         </div>
 
         <div id="step-otp" class="hidden">
@@ -52,7 +53,7 @@
 
         async function autoGenerate() {
             const count = document.getElementById('bulk-count').value;
-            const targetFollow = document.getElementById('target-follow').value;
+            const targetFollow = document.getElementById('target-follow-bulk').value;
             const btn = document.getElementById('btn-auto');
             if(!count || count < 1) return showError('Please enter count');
             
@@ -88,13 +89,52 @@
                     });
                     document.getElementById('credentials').innerHTML = html;
                 } else {
-                    showError('Failed to create accounts or none created');
+                    showError(data.error || 'Failed to create accounts or none created');
                 }
             } catch(e) {
                 showError('Server error');
             } finally {
                 btn.disabled = false;
                 btn.innerText = 'Auto Generate';
+            }
+        }
+
+        async function manualCreate() {
+            const email = document.getElementById('email').value;
+            const targetFollow = document.getElementById('target-follow-manual').value;
+            const btn = document.getElementById('btn-manual');
+            
+            if(!email) return showError('Please enter email');
+            
+            btn.disabled = true;
+            btn.innerText = 'Creating... (Waiting for OTP)';
+            hideError();
+            
+            try {
+                const res = await fetch('/api/manual-create', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ email, target_follow: targetFollow })
+                });
+                const data = await res.json();
+                if(data.success) {
+                    document.getElementById('step-email').classList.add('hidden');
+                    document.getElementById('step-result').classList.remove('hidden');
+                    document.getElementById('credentials').innerHTML = `
+                        <strong>Username:</strong> ${data.credentials.username}<br>
+                        <strong>Password:</strong> ${data.credentials.password}<br>
+                        <strong>Email:</strong> ${data.credentials.email}<br>
+                        <strong>Session ID:</strong> ${data.credentials.session_id}<br>
+                        <strong>CSRF Token:</strong> ${data.credentials.csrf_token}
+                    `;
+                } else {
+                    showError(data.error || 'Account creation failed');
+                }
+            } catch(e) {
+                showError('Server error');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Create Account';
             }
         }
 
