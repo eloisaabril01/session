@@ -1,14 +1,31 @@
 import string
 import random
 import os
+import json
 from flask import Flask, request, jsonify, send_from_directory
 from Acc_Gen import InstagramAccountCreator
 from gmail_mgr import GmailManager
 
 app = Flask(__name__, static_folder='static')
 
-# In-memory storage for active sessions
-sessions = {}
+# File-based storage for sessions to handle serverless/restarts
+SESSION_FILE = 'sessions.json'
+
+def load_sessions():
+    if os.path.exists(SESSION_FILE):
+        try:
+            with open(SESSION_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_sessions(sessions_data):
+    try:
+        with open(SESSION_FILE, 'w') as f:
+            json.dump(sessions_data, f)
+    except Exception as e:
+        print(f"Error saving sessions: {e}")
 
 @app.route('/')
 def index():
@@ -17,8 +34,6 @@ def index():
 @app.route('/static/<path:path>')
 def send_static(path):
     return send_from_directory(app.static_folder, path)
-
-from gmail_mgr import GmailManager
 
 # Global settings for Gmail
 GMAIL_CONFIG = {
@@ -132,8 +147,10 @@ def request_otp():
     try:
         creator.generate_headers()
         if creator.send_verification_email(email):
-            sessions[email] = creator
-            print(f"Session created for {email}. Current sessions: {list(sessions.keys())}")
+            sessions_data = load_sessions()
+            sessions_data[email] = creator.get_state()
+            save_sessions(sessions_data)
+            print(f"Session persisted for {email}")
             return jsonify({'success': True, 'message': 'OTP sent to email'})
         else:
             return jsonify({'error': 'Failed to send OTP'}), 500
@@ -147,22 +164,27 @@ def verify_otp():
     email = data.get('email', '').lower()
     otp = data.get('otp')
     
-    print(f"Verifying OTP for {email}. Current sessions: {list(sessions.keys())}")
-    
     if not email or not otp:
         return jsonify({'error': 'Email and OTP are required'}), 400
         
-    creator = sessions.get(email)
-    if not creator:
+    sessions_data = load_sessions()
+    state = sessions_data.get(email)
+    
+    if not state:
+        print(f"Session not found for {email}. Available: {list(sessions_data.keys())}")
         return jsonify({'error': f'Session for {email} expired or not found. Please request a new OTP.'}), 404
         
     try:
+        creator = InstagramAccountCreator()
+        creator.load_state(state)
+        
         signup_code = creator.validate_verification_code(email, otp)
         if signup_code:
             credentials = creator.create_account(email, signup_code)
             if credentials:
-                # Remove from sessions after successful creation
-                del sessions[email]
+                # Remove from persistent storage after successful creation
+                del sessions_data[email]
+                save_sessions(sessions_data)
                 return jsonify({
                     'success': True, 
                     'credentials': {
@@ -178,6 +200,56 @@ def verify_otp():
         else:
             return jsonify({'error': 'Invalid OTP'}), 400
     except Exception as e:
+        print(f"Error in verify_otp: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/manual-create', methods=['POST'])
+def manual_create():
+    data = request.json
+    email = data.get('email', '').lower()
+    target_follow = data.get('target_follow')
+    
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+        
+    if not GMAIL_CONFIG['email'] or not GMAIL_CONFIG['password']:
+        return jsonify({'error': 'Gmail not configured. Set GMAIL_ADDRESS and GMAIL_APP_PASSWORD.'}), 400
+
+    gmail = GmailManager(GMAIL_CONFIG['email'], GMAIL_CONFIG['password'])
+    if not gmail.connect():
+        return jsonify({'error': 'Failed to connect to Gmail'}), 500
+
+    try:
+        creator = InstagramAccountCreator(country='US', language='en')
+        creator.generate_headers()
+        
+        if creator.send_verification_email(email):
+            print(f"Email sent to {email}, waiting for OTP...")
+            otp = gmail.get_otp(email)
+            if otp:
+                print(f"OTP received: {otp}")
+                signup_code = creator.validate_verification_code(email, otp)
+                if signup_code:
+                    credentials = creator.create_account(email, signup_code)
+                    if credentials:
+                        if target_follow:
+                            creator.follow_user(target_follow)
+                        
+                        gmail.disconnect()
+                        return jsonify({
+                            'success': True,
+                            'credentials': {
+                                'username': credentials.username,
+                                'password': credentials.password,
+                                'email': email,
+                                'session_id': credentials.session_id,
+                                'csrf_token': credentials.csrf_token
+                            }
+                        })
+        gmail.disconnect()
+        return jsonify({'error': 'Account creation failed or OTP not received. Check if your Gmail allows IMAP and the app password is correct.'}), 500
+    except Exception as e:
+        if gmail: gmail.disconnect()
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
