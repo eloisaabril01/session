@@ -2,6 +2,7 @@ import string
 import random
 import os
 import json
+import names
 from flask import Flask, request, jsonify, send_from_directory
 from Acc_Gen import InstagramAccountCreator
 from gmail_mgr import GmailManager
