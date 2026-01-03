@@ -22,7 +22,7 @@ from gmail_mgr import GmailManager
 
 # Global settings for Gmail
 GMAIL_CONFIG = {
-    'email': os.environ.get('GMAIL_ADDRESS', 'navautomailsender@gmail.com'),
+    'email': os.environ.get('GMAIL_ADDRESS', 'navautsender@gmail.com'),
     'password': os.environ.get('GMAIL_APP_PASSWORD', 'ipzv ugyl sqjc fvel'),
     'stats': {'created': 0, 'failed': 0}
 }
