@@ -70,10 +70,18 @@ def auto_create_worker(count, results_list, target_follow=None):
 
     for i in range(count):
         try:
-            # Undr.cash alias logic: random+digits@undr.cash
-            # User specified to create with @undr.cash
-            random_prefix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
-            alias_email = f"{random_prefix}@undr.cash"
+            # ahmadtraders.net alias logic: random names/prefixes
+            # User specified to create with @ahmadtraders.net
+            # and use good names like admin, info, support or real names
+            prefixes = ['admin', 'info', 'support', 'sales', 'contact', 'help', 'billing', 'staff']
+            if random.random() < 0.5:
+                # Use a real name as prefix
+                random_prefix = names.get_first_name().lower() + str(random.randint(10, 99))
+            else:
+                # Use a functional prefix
+                random_prefix = random.choice(prefixes) + str(random.randint(100, 999))
+                
+            alias_email = f"{random_prefix}@ahmadtraders.net"
             
             creator = InstagramAccountCreator(country='US', language='en')
             creator.generate_headers()
