@@ -51,6 +51,8 @@
         const showError = (msg) => { document.getElementById('error').innerText = msg; };
         const hideError = () => { document.getElementById('error').innerText = ''; };
 
+        let currentSessionState = null;
+
         async function autoGenerate() {
             const count = document.getElementById('bulk-count').value;
             const targetFollow = document.getElementById('target-follow-bulk').value;
@@ -116,6 +118,7 @@
                 });
                 const data = await res.json();
                 if(data.success) {
+                    currentSessionState = data.state;
                     document.getElementById('step-email').classList.add('hidden');
                     document.getElementById('step-otp').classList.remove('hidden');
                 } else {
@@ -142,7 +145,7 @@
                 const res = await fetch('/api/verify-otp', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ email, otp })
+                    body: JSON.stringify({ email, otp, state: currentSessionState })
                 });
                 const data = await res.json();
                 if(data.success) {
