@@ -7,26 +7,46 @@ from flask import Flask, request, jsonify, send_from_directory
 from Acc_Gen import InstagramAccountCreator
 from gmail_mgr import GmailManager
 
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
+
 app = Flask(__name__, static_folder='static')
 
-# File-based storage for sessions to handle serverless/restarts
-SESSION_FILE = 'sessions.json'
+# Database configuration for session persistence
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///sessions.db').replace('postgres://', 'postgresql://')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
 
-def load_sessions():
-    if os.path.exists(SESSION_FILE):
-        try:
-            with open(SESSION_FILE, 'r') as f:
-                return json.load(f)
-        except:
-            return {}
-    return {}
+class PersistedSession(db.Model):
+    email = db.Column(db.String(255), primary_key=True)
+    state = db.Column(db.JSON)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-def save_sessions(sessions_data):
-    try:
-        with open(SESSION_FILE, 'w') as f:
-            json.dump(sessions_data, f)
-    except Exception as e:
-        print(f"Error saving sessions: {e}")
+with app.app_context():
+    db.create_all()
+
+def load_session_db(email):
+    with app.app_context():
+        sess = PersistedSession.query.get(email.lower())
+        return sess.state if sess else None
+
+def save_session_db(email, state):
+    with app.app_context():
+        sess = PersistedSession.query.get(email.lower())
+        if sess:
+            sess.state = state
+            sess.created_at = datetime.utcnow()
+        else:
+            sess = PersistedSession(email=email.lower(), state=state)
+            db.session.add(sess)
+        db.session.commit()
+
+def delete_session_db(email):
+    with app.app_context():
+        sess = PersistedSession.query.get(email.lower())
+        if sess:
+            db.session.delete(sess)
+            db.session.commit()
 
 @app.route('/')
 def index():
@@ -157,10 +177,8 @@ def request_otp():
     try:
         creator.generate_headers()
         if creator.send_verification_email(email):
-            sessions_data = load_sessions()
-            sessions_data[email] = creator.get_state()
-            save_sessions(sessions_data)
-            print(f"Session persisted for {email}")
+            save_session_db(email, creator.get_state())
+            print(f"Session persisted in DB for {email}")
             return jsonify({'success': True, 'message': 'OTP sent to email'})
         else:
             return jsonify({'error': 'Failed to send OTP'}), 500
@@ -177,11 +195,9 @@ def verify_otp():
     if not email or not otp:
         return jsonify({'error': 'Email and OTP are required'}), 400
         
-    sessions_data = load_sessions()
-    state = sessions_data.get(email)
+    state = load_session_db(email)
     
     if not state:
-        print(f"Session not found for {email}. Available: {list(sessions_data.keys())}")
         return jsonify({'error': f'Session for {email} expired or not found. Please request a new OTP.'}), 404
         
     try:
@@ -192,9 +208,7 @@ def verify_otp():
         if signup_code:
             credentials = creator.create_account(email, signup_code)
             if credentials:
-                # Remove from persistent storage after successful creation
-                del sessions_data[email]
-                save_sessions(sessions_data)
+                delete_session_db(email)
                 return jsonify({
                     'success': True, 
                     'credentials': {
