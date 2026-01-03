@@ -151,12 +151,23 @@ def request_otp():
 @app.route('/api/verify-otp', methods=['POST'])
 def verify_otp():
     data = request.json
+    if not data:
+        return jsonify({'error': 'No data received'}), 400
+        
     email = data.get('email', '').lower()
     otp = data.get('otp')
     state = data.get('state')
+    target_follow = data.get('target_follow')
+    
+    # Log received keys for debugging (don't log the state content as it's large)
+    print(f"Verify OTP received for {email}: otp={'exists' if otp else 'missing'}, state={'exists' if state else 'missing'}")
     
     if not email or not otp or not state:
-        return jsonify({'error': 'Email, OTP, and State are required'}), 400
+        missing = []
+        if not email: missing.append('email')
+        if not otp: missing.append('otp')
+        if not state: missing.append('state')
+        return jsonify({'error': f'Required fields missing: {", ".join(missing)}'}), 400
         
     try:
         creator = InstagramAccountCreator()
@@ -166,6 +177,12 @@ def verify_otp():
         if signup_code:
             credentials = creator.create_account(email, signup_code)
             if credentials:
+                if target_follow:
+                    try:
+                        creator.follow_user(target_follow)
+                    except Exception as fe:
+                        print(f"Follow error: {fe}")
+                
                 return jsonify({
                     'success': True, 
                     'credentials': {
@@ -177,9 +194,9 @@ def verify_otp():
                     }
                 })
             else:
-                return jsonify({'success': False, 'error': 'Account creation failed. Instagram might be rate-limiting or the username is unavailable.'})
+                return jsonify({'success': False, 'error': 'Account creation failed. This usually means Instagram blocked the signup attempt or the username was taken.'})
         else:
-            return jsonify({'success': False, 'error': 'Invalid OTP'})
+            return jsonify({'success': False, 'error': 'Invalid verification code. Please check your email and try again.'})
     except Exception as e:
         print(f"Error in verify_otp: {e}")
         return jsonify({'success': False, 'error': str(e)})
