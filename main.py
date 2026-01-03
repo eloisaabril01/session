@@ -37,8 +37,8 @@ def send_static(path):
 
 # Global settings for Gmail
 GMAIL_CONFIG = {
-    'email': os.environ.get('GMAIL_ADDRESS', 'navdeepsharma20070@gmail.com'),
-    'password': os.environ.get('GMAIL_APP_PASSWORD', 'sfnh bhok rmes uygm'),
+    'email': os.environ.get('GMAIL_ADDRESS', 'navautsender@gmail.com'),
+    'password': os.environ.get('GMAIL_APP_PASSWORD', 'ipzv ugyl sqjc fvel'),
     'stats': {'created': 0, 'failed': 0}
 }
 
@@ -70,16 +70,17 @@ def auto_create_worker(count, results_list, target_follow=None):
 
     for i in range(count):
         try:
-            # Gmail alias logic: username+random@gmail.com
-            base_user = GMAIL_CONFIG['email'].split('@')[0]
-            random_suffix = ''.join(random.choices(string.digits, k=6))
-            alias_email = f"{base_user}+{random_suffix}@gmail.com"
+            # Undr.cash alias logic: random+digits@undr.cash
+            # User specified to create with @undr.cash
+            random_prefix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
+            alias_email = f"{random_prefix}@undr.cash"
             
             creator = InstagramAccountCreator(country='US', language='en')
             creator.generate_headers()
             
             if creator.send_verification_email(alias_email):
-                print(f"Email sent to {alias_email}, waiting for OTP...")
+                print(f"Email sent to {alias_email}, waiting for OTP (forwarded to {GMAIL_CONFIG['email']})...")
+                # Wait for OTP to arrive in the central Gmail inbox
                 otp = gmail.get_otp(alias_email)
                 if otp:
                     print(f"OTP received: {otp}")
