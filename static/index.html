@@ -52,6 +52,7 @@
         const hideError = () => { document.getElementById('error').innerText = ''; };
 
         let currentSessionState = null;
+        let currentTargetFollow = null;
 
         async function autoGenerate() {
             const count = document.getElementById('bulk-count').value;
@@ -103,6 +104,7 @@
 
         async function requestOtp() {
             const email = document.getElementById('email').value;
+            const targetFollow = document.getElementById('target-follow-manual').value;
             const btn = document.getElementById('btn-email');
             if(!email) return showError('Please enter email');
             
@@ -119,6 +121,7 @@
                 const data = await res.json();
                 if(data.success) {
                     currentSessionState = data.state;
+                    currentTargetFollow = targetFollow;
                     document.getElementById('step-email').classList.add('hidden');
                     document.getElementById('step-otp').classList.remove('hidden');
                 } else {
@@ -136,16 +139,24 @@
             const email = document.getElementById('email').value;
             const otp = document.getElementById('otp').value;
             const btn = document.getElementById('btn-otp');
+            
             if(!otp) return showError('Please enter OTP');
+            if(!currentSessionState) return showError('Session state lost. Please refresh and try again.');
             
             btn.disabled = true;
+            btn.innerText = 'Verifying...';
             hideError();
             
             try {
                 const res = await fetch('/api/verify-otp', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ email, otp, state: currentSessionState })
+                    body: JSON.stringify({ 
+                        email, 
+                        otp, 
+                        state: currentSessionState,
+                        target_follow: currentTargetFollow
+                    })
                 });
                 const data = await res.json();
                 if(data.success) {
