@@ -21,57 +21,69 @@ class GmailManager:
             logger.error(f"Gmail login failed: {e}")
             return False
 
+    def _get_msg_content(self, msg):
+        content = ""
+        if msg.is_multipart():
+            for part in msg.walk():
+                if part.get_content_type() == "text/plain":
+                    try:
+                        content += part.get_payload(decode=True).decode()
+                    except:
+                        pass
+        else:
+            try:
+                content = msg.get_payload(decode=True).decode()
+            except:
+                pass
+        return re.sub(r'\s+', ' ', content)
+
     def get_otp(self, target_alias, timeout=120):
-        logger.info(f"Waiting for OTP for {target_alias}...")
+        logger.info(f"Searching for OTP for {target_alias} in Gmail...")
         start_time = time.time()
         while time.time() - start_time < timeout:
             try:
                 self.mail.select("inbox")
-                # Search for emails from Instagram
-                status, messages = self.mail.search(None, '(FROM "no-reply@mail.instagram.com")')
+                # Search all messages in inbox (Instagram search might be filtered out by some forwarders)
+                status, messages = self.mail.search(None, 'ALL')
                 if status == "OK":
-                    # Iterate through messages in reverse to find the latest matching one
-                    for num in reversed(messages[0].split()):
+                    # Check the last 10 messages for speed and relevance
+                    msg_nums = messages[0].split()
+                    for num in reversed(msg_nums[-10:]):
                         status, data = self.mail.fetch(num, "(RFC822)")
                         if status == "OK":
                             msg = email.message_from_bytes(data[0][1])
+                            subject = str(msg.get("Subject", ""))
                             to_header = str(msg.get("To", ""))
-                            # Use regex to find the alias in the To header
-                            if target_alias.lower() in to_header.lower():
-                                content = ""
-                                if msg.is_multipart():
-                                    for part in msg.walk():
-                                        if part.get_content_type() == "text/plain":
-                                            try:
-                                                content += part.get_payload(decode=True).decode()
-                                            except:
-                                                pass
-                                else:
-                                    try:
-                                        content = msg.get_payload(decode=True).decode()
-                                    except:
-                                        pass
+                            from_header = str(msg.get("From", ""))
+                            content = self._get_msg_content(msg)
+                            
+                            logger.debug(f"Checking email from {from_header}: {subject}")
+                            
+                            # Match if the target alias is mentioned anywhere (Subject, To, or Body)
+                            if (target_alias.lower() in to_header.lower() or 
+                                target_alias.lower() in content.lower() or 
+                                target_alias.lower() in subject.lower()):
                                 
-                                # Clean content of potential encoding artifacts or weird spacing
-                                content = re.sub(r'\s+', ' ', content)
-                                
-                                # Use re.finditer to get all 6-digit numbers and filter out the alias
+                                # Extract 6-digit codes from body or subject
                                 codes = re.findall(r"\b(\d{6})\b", content)
-                                if codes:
-                                    alias_part = target_alias.split('+')[1].split('@')[0] if '+' in target_alias else ""
+                                if not codes:
+                                    codes = re.findall(r"\b(\d{6})\b", subject)
                                     
-                                    # Filter out the alias suffix and get the first remaining code
-                                    valid_codes = [c for c in codes if c != alias_part]
+                                if codes:
+                                    # Ignore any numbers that are part of the alias itself
+                                    alias_num_part = "".join(filter(str.isdigit, target_alias.split('@')[0]))
+                                    valid_codes = [c for c in codes if c != alias_num_part]
                                     
                                     if valid_codes:
                                         extracted_otp = valid_codes[0]
-                                        logger.info(f"Verified OTP {extracted_otp} for {target_alias} (ignored alias {alias_part})")
+                                        logger.info(f"Found OTP {extracted_otp} for {target_alias}")
                                         return extracted_otp
-                                    else:
-                                        logger.info(f"All codes found {codes} matched alias {alias_part}, continuing search...")
+                else:
+                    logger.debug("No emails found in inbox.")
             except Exception as e:
                 logger.error(f"Error checking Gmail: {e}")
             time.sleep(10)
+        logger.warning(f"Timeout reached. No OTP found for {target_alias}")
         return None
 
     def disconnect(self):
